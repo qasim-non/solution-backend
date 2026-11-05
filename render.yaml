@@ -1,0 +1,44 @@
+services:
+  # -------------------------------------------------------------
+  # 1. THE NGINX GATEWAY (Public Web Service)
+  # -------------------------------------------------------------
+  - type: web
+    name: solution-gateway
+    runtime: docker
+    dockerfilePath: Dockerfile.nginx
+    plan: free
+    envVars:
+      - key: APP_ENV
+        value: production
+
+  # -------------------------------------------------------------
+  # 2. THE LARAVEL API (Public Web Service on Free Tier)
+  # -------------------------------------------------------------
+  # 🚨 Note: Private services don't have a free plan. We make it a 'web'
+  # service, but Nginx keeps it secure because users only talk to the gateway!
+  - type: web
+    name: solution-app
+    runtime: docker
+    image:
+      url: registry.hub.docker.com/qasim00programmer/solution-api:1.0.4
+    plan: free
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: DB_CONNECTION
+        value: pgsql  # 🚨 Switched from mysql to pgsql
+      - key: DB_HOST
+        value: solution-postgres
+      - key: DB_PORT
+        value: 5432
+
+# -------------------------------------------------------------
+# 3. THE POSTGRES DATABASE (Native Free Tier Database Instance)
+# -------------------------------------------------------------
+databases:
+  - name: solution-postgres
+    databaseName: solution_db
+    user: solution_user
+    plan: free # 🚨 Render allows this for free, completely managed!

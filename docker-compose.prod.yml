@@ -1,0 +1,61 @@
+# Production stack. Run with: docker compose --env-file .env -f docker-compose.prod.yml up -d
+services:
+  app:
+    image: qasim00programmer/solution-api:2.0.0
+    container_name: solution_app
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    env_file:
+      - .env
+    environment:
+      - APP_KEY=${APP_KEY}
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - PORT=80
+      - RUN_MIGRATIONS=true
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - solution_network
+
+  frontend:
+    image: qasim00programmer/solution-frontend:1.0.10
+    container_name: solution_frontend
+    restart: unless-stopped
+    ports:
+      # NOTE: hosts running XAMPP/Apache on port 80 should use a different host port
+      - "8000:80"
+    environment:
+      # Internal Docker network URL to the backend container
+      - BACKEND_URL=http://app:80
+    depends_on:
+      - app
+    networks:
+      - solution_network
+
+  mysql:
+    image: mysql:8.0
+    container_name: solution_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - solution_network
+
+volumes:
+  mysql_data:
+
+networks:
+  solution_network:

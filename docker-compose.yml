@@ -1,0 +1,66 @@
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: solution
+
+    volumes:
+      - .:/var/www/html
+      - ./docker/php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
+
+    depends_on:
+      - mysql
+
+    networks:
+      - solution_network
+
+
+  nginx:
+    image: nginx:alpine
+
+    container_name: solution_nginx
+
+    ports:
+      - "8080:80"
+
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+
+    depends_on:
+      - app
+
+    networks:
+      - solution_network
+
+
+  mysql:
+    image: mysql:8.0
+
+    container_name: solution_mysql
+
+    environment:
+      MYSQL_DATABASE: solution
+      MYSQL_USER: solution_db
+      MYSQL_PASSWORD: YousefQasim
+      MYSQL_ROOT_PASSWORD: root_secret
+
+    ports:
+      - "3307:3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    networks:
+      - solution_network
+
+
+volumes:
+  mysql_data:
+
+
+networks:
+  solution_network:
