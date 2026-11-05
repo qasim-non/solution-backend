@@ -69,7 +69,6 @@ class projectRequest extends FormRequest
             'project_name' => ['required', 'string', 'min:3', 'max:100'],
             'mobile' => ['required', 'string', 'min:10', 'max:20'],
             'description' => ['nullable', 'string', 'max:1000'],
-            'device_id' => ['nullable', 'string', 'max:64'],
 
             'system_types' => ['required', 'array', 'min:1'],
             'system_types.*' => ['integer', 'exists:system_types,id'],

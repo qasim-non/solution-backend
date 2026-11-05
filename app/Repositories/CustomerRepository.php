@@ -17,7 +17,6 @@ class CustomerRepository
                 'project_name' => $requestData['project_name'],
                 'mobile' => $requestData['mobile'],
                 'description' => $requestData['description'] ?? null,
-                'device_id' => $requestData['device_id'] ?? null,
                 'status' => 'pending',
             ]);
 

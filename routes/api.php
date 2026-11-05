@@ -16,13 +16,6 @@ Route::middleware('throttle:api')->group(function () {
     // Public: the customer request form needs the list of system types.
     Route::get('/system-types', [AdminController::class, 'systemTypes']);
 
-    // Public: anonymous customers can opt in to push notifications.
-    Route::post('/device-tokens', [DeviceTokenController::class, 'store'])
-        ->middleware('throttle:device-tokens');
-
-    Route::delete('/device-tokens', [DeviceTokenController::class, 'destroy'])
-        ->middleware('throttle:device-tokens');
-
     // GET (Details) -> show the number of projects and devs in the team.
 
     // POST (creat_dev) -> Create all new data for dev in the system.
@@ -41,6 +34,13 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('/request/social-media-account/{request}', [AdminController::class, 'returnSocialMediaAccount']);
 
     Route::get('/messages', [AdminController::class, 'returnAllMessages']);
+
+    // Admin-only: only authenticated admins may register a push device.
+    Route::post('/device-tokens', [DeviceTokenController::class, 'store'])
+        ->middleware('throttle:device-tokens');
+
+    Route::delete('/device-tokens', [DeviceTokenController::class, 'destroy'])
+        ->middleware('throttle:device-tokens');
 
     Route::get('/notifications', [NotificationController::class, 'index']);
 

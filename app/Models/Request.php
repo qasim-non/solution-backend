@@ -13,7 +13,6 @@ class Request extends Model
         'project_name',
         'mobile',
         'description',
-        'device_id',
         'status',
     ];
 

@@ -43,9 +43,10 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($request->ip());
         });
 
-        // Device token registration is cheap but must not be abused to spam FCM.
+        // Admin-only device registration is cheap but must not be abused to
+        // spam FCM. Authenticated requests are keyed by admin id.
         RateLimiter::for('device-tokens', function (Request $request) {
-            return Limit::perMinute(10)->by($request->ip());
+            return Limit::perMinute(10)->by($request->user()?->id ?: $request->ip());
         });
 
     }

@@ -8,7 +8,7 @@ class DeviceTokenRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user() !== null;
     }
 
     /**
@@ -18,7 +18,6 @@ class DeviceTokenRequest extends FormRequest
     {
         return [
             'token' => ['required', 'string', 'max:512'],
-            'device_id' => ['required', 'string', 'max:64'],
             'platform' => ['nullable', 'string', 'in:web,android,ios'],
         ];
     }
@@ -30,7 +29,6 @@ class DeviceTokenRequest extends FormRequest
     {
         return [
             'token.required' => 'The FCM token is required.',
-            'device_id.required' => 'The device id is required.',
             'platform.in' => 'The platform must be one of: web, android, ios.',
         ];
     }

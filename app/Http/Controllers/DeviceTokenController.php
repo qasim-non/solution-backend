@@ -7,29 +7,25 @@ use App\Http\Traits\ApiResponse;
 use App\Models\DeviceToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class DeviceTokenController extends Controller
 {
     use ApiResponse;
 
     /**
-     * Register (or refresh) a browser/device FCM token.
+     * Register (or refresh) the authenticated admin's FCM token.
      *
-     * The route is public so anonymous customers can opt in to notifications.
-     * When a valid Sanctum bearer token is present the token is linked to the
-     * admin, which is how the dashboard receives "new request" pushes.
+     * Only admins can receive push notifications, so the route is protected by
+     * `auth:sanctum` and every token is linked to the admin that registered it.
      */
     public function store(DeviceTokenRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $admin = Auth::guard('sanctum')->user();
 
         $deviceToken = DeviceToken::updateOrCreate(
             ['token' => $validated['token']],
             [
-                'admin_id' => $admin?->id,
-                'device_id' => $validated['device_id'],
+                'admin_id' => $request->user()->id,
                 'platform' => $validated['platform'] ?? 'web',
                 'user_agent' => $request->userAgent(),
                 'last_used_at' => now(),
@@ -44,7 +40,8 @@ class DeviceTokenController extends Controller
     }
 
     /**
-     * Remove a token when the user disables notifications or logs out.
+     * Remove one of the authenticated admin's tokens when notifications are
+     * disabled or the admin logs out.
      */
     public function destroy(Request $request): JsonResponse
     {
@@ -52,7 +49,10 @@ class DeviceTokenController extends Controller
             'token' => ['required', 'string', 'max:512'],
         ]);
 
-        DeviceToken::query()->where('token', $validated['token'])->delete();
+        DeviceToken::query()
+            ->where('admin_id', $request->user()->id)
+            ->where('token', $validated['token'])
+            ->delete();
 
         return $this->success(null, 'Device token removed successfully.');
     }

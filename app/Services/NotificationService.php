@@ -52,39 +52,6 @@ class NotificationService
     }
 
     /**
-     * Notify the browser that submitted a request when an admin completes it.
-     */
-    public function notifyCustomerOfCompletion(ProjectRequest $projectRequest): void
-    {
-        try {
-            if (! $projectRequest->device_id) {
-                return;
-            }
-
-            $tokens = DeviceToken::query()
-                ->where('device_id', $projectRequest->device_id)
-                ->pluck('token')
-                ->all();
-
-            $this->sendPush(
-                $tokens,
-                'تم إنجاز طلبك',
-                'اكتمل العمل على طلب: '.$projectRequest->project_name,
-                [
-                    'type' => 'request_completed',
-                    'request_id' => $projectRequest->id,
-                    'url' => '/',
-                ],
-            );
-        } catch (Throwable $exception) {
-            Log::error('Failed to notify a customer about request completion.', [
-                'request_id' => $projectRequest->id,
-                'message' => $exception->getMessage(),
-            ]);
-        }
-    }
-
-    /**
      * @param  array<int, string>  $tokens
      * @param  array<string, scalar>  $data
      */

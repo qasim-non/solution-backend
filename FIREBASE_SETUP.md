@@ -15,17 +15,18 @@ and keys below are missing.
 | Piece | Location | Purpose |
 | --- | --- | --- |
 | Admin SDK wrapper | `app/Services/FirebaseService.php` | Sends FCM messages, removes stale tokens |
-| Notification orchestration | `app/Services/NotificationService.php` | Admin + customer notification flows |
+| Notification orchestration | `app/Services/NotificationService.php` | Admin notification flows |
 | Queued sender | `app/Jobs/SendPushNotification.php` | Sends outside the HTTP request |
-| Device tokens | `app/Http/Controllers/DeviceTokenController.php` | Public register / remove API |
+| Device tokens | `app/Http/Controllers/DeviceTokenController.php` | Admin-only register / remove API |
 | In-app notifications | `app/Http/Controllers/NotificationController.php` | Admin notification centre |
 | Web SDK init | `frontend/src/lib/firebase.ts` | Firebase app + Analytics |
 | Push helpers | `frontend/src/lib/notifications.ts` | Permission, token, registration |
 | Service worker | `frontend/public/firebase-messaging-sw.js` | Background push handling |
 
-Push is **opt-in**. Browsers require a user gesture, so the app only asks for
-permission when the user presses the bell button in the customer navbar or the
-admin sidebar.
+Push notifications are **admin-only**. Customers never register a device and
+never receive push messages. Push is also **opt-in**: browsers require a user
+gesture, so the app only asks for permission when an authenticated admin presses
+the bell button in the admin sidebar.
 
 ---
 
@@ -141,30 +142,28 @@ docker build \
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| `POST` | `/api/device-tokens` | Public (optional Sanctum) | Register / refresh an FCM token |
-| `DELETE` | `/api/device-tokens` | Public | Remove a token |
-| `GET` | `/api/notifications` | Sanctum | Paginated in-app notifications |
-| `PATCH` | `/api/notifications/{id}/read` | Sanctum | Mark one as read |
-| `PATCH` | `/api/notifications/read-all` | Sanctum | Mark all as read |
+| `POST` | `/api/device-tokens` | Sanctum (admin) | Register / refresh an FCM token |
+| `DELETE` | `/api/device-tokens` | Sanctum (admin) | Remove one of the admin's tokens |
+| `GET` | `/api/notifications` | Sanctum (admin) | Paginated in-app notifications |
+| `PATCH` | `/api/notifications/{id}/read` | Sanctum (admin) | Mark one as read |
+| `PATCH` | `/api/notifications/read-all` | Sanctum (admin) | Mark all as read |
 
-When a request is registered with a Sanctum bearer token, the token is linked
-to the admin so the dashboard receives **new request** pushes. Anonymous
-customers get a **request completed** push via the stable `device_id` stored on
-the request.
+Every registered token belongs to an admin. When a customer submits a new
+request, all admins receive an in-app notification and, if they enabled the
+bell, a push notification. Customers are never notified.
 
 ---
 
 ## 5. Test checklist
 
-1. `php artisan migrate --force` (creates `device_tokens`, adds
-   `requests.device_id`).
+1. `php artisan migrate --force` (creates `device_tokens`).
 2. Start the queue worker.
-3. Open the app, press the bell button, allow notifications.
-4. Confirm a row exists in `device_tokens`.
-5. Submit a customer request → admins receive an in-app row in `notifications`
-   and (once configured) a push.
-6. Mark the request complete → the submitting browser receives a push.
-7. In the Firebase console, **Cloud Messaging** → send a test message to the
+3. Log in as an admin, press the bell button in the sidebar, and allow
+   notifications.
+4. Confirm a row exists in `device_tokens` with a non-null `admin_id`.
+5. Submit a customer request from the public form → admins receive an in-app row
+   in `notifications` and (once configured) a push.
+6. In the Firebase console, **Cloud Messaging** → send a test message to the
    token to verify delivery independently of the app.
 
 If push is skipped, check `storage/logs/laravel.log` for
@@ -179,6 +178,8 @@ service-account file or `FIREBASE_CREDENTIALS_JSON` is missing.
 - The backend never logs the service-account JSON or full FCM tokens.
 - Invalid/unknown FCM tokens are deleted automatically so the table does not
   accumulate dead entries.
+- `device_tokens` is admin-only: the API requires a Sanctum admin token, and an
+  admin can only remove their own tokens.
 - Push failures are caught and logged; they never roll back a customer request
   or an admin action.
 - Analytics events only include non-sensitive metadata (page path, request

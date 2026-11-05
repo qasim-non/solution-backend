@@ -9,7 +9,6 @@ use App\Models\Message;
 use App\Models\Request;
 use App\Models\RequestSocialMedia;
 use App\Models\SystemType;
-use App\Services\NotificationService;
 use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
@@ -70,14 +69,12 @@ class AdminController extends Controller
 
     }
 
-    public function requestComplete(Request $request, NotificationService $notifications)
+    public function requestComplete(Request $request)
     {
         if ($request->status == 'completed') {
             return response()->json(['message' => 'The request status is already completed.'], 400);
         }
         Request::requestToComplete($request['id']);
-
-        $notifications->notifyCustomerOfCompletion($request);
 
         return response()->json(['message' => 'Request status updated to completed.'], 200);
     }

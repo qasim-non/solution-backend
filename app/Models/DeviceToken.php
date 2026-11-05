@@ -11,7 +11,6 @@ class DeviceToken extends Model
 
     protected $fillable = [
         'admin_id',
-        'device_id',
         'token',
         'platform',
         'user_agent',
