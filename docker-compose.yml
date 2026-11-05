@@ -20,6 +20,27 @@ services:
       - solution_network
 
 
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: solution_queue
+
+    volumes:
+      - .:/var/www/html
+      - ./docker/php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
+
+    # Push notifications are queued so FCM latency never blocks an HTTP request.
+    command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+
+    depends_on:
+      - mysql
+
+    networks:
+      - solution_network
+
+
   nginx:
     image: nginx:alpine
 

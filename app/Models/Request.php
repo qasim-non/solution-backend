@@ -5,35 +5,32 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
-use function PHPUnit\Framework\returnArgument;
-
 class Request extends Model
 {
     protected $table = 'requests';
 
-
     protected $fillable = [
         'project_name',
         'mobile',
-        'description'
+        'description',
+        'device_id',
+        'status',
     ];
-
 
     public function platforms()
     {
         return $this->hasMany(RequestSocialMedia::class);
     }
 
-        public function systemTypes()
-{
-    return $this->belongsToMany(
-        SystemType::class,
-        'request_types',
-        'requests_id',
-        'type_id'
-    )->as('ignore');
-}
-
+    public function systemTypes()
+    {
+        return $this->belongsToMany(
+            SystemType::class,
+            'request_types',
+            'requests_id',
+            'type_id'
+        )->as('ignore');
+    }
 
     public static function dashboardInfo()
     {
@@ -50,56 +47,54 @@ class Request extends Model
         // with the existing frontend type.
         $latestRequests = Request::select('id', 'project_name', 'description', 'status', 'created_at')->latest()->take(10)->get();
 
-              return  [
-            'total_requests'=>$total,
-            'recent_requests'=>$recent,
-            'pending_requests'=>$pending,
-            'completed_requests'=>$completed,
-            'oldest_requests'=>$latestRequests,
+        return [
+            'total_requests' => $total,
+            'recent_requests' => $recent,
+            'pending_requests' => $pending,
+            'completed_requests' => $completed,
+            'oldest_requests' => $latestRequests,
         ];
     }
-
 
     public static function createNewRequest($requestInfo)
     {
         return DB::transaction(function () use ($requestInfo) {
 
+            $requestCreated = Request::create([
+                'project_name' => $requestInfo['project_name'],
+                'mobile' => $requestInfo['mobile'],
+                'description' => $requestInfo['description'] ?? null,
+                'status' => 'pending',
+            ]);
 
-        $requestCreated = Request::create([
-            'project_name' => $requestInfo['project_name'],
-            'mobile' => $requestInfo['mobile'],
-            'description' => $requestInfo['description'] ?? null,
-            'status' => 'pending',
-        ]);
+            $systemTypesData = collect($requestInfo['system_types'])->map(function ($typeId) use ($requestCreated) {
+                return [
+                    'requests_id' => $requestCreated->id,
+                    'type_id' => $typeId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            })->toArray();
 
-        $systemTypesData = collect($requestInfo['system_types'])->map(function ($typeId) use ($requestCreated) {
-            return [
-                'requests_id' => $requestCreated->id,
-                'type_id' => $typeId,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-        })->toArray();
+            RequestType::insert($systemTypesData);
 
-        RequestType::insert($systemTypesData);
+            $socialMediaData = [];
+            foreach (($requestInfo['social_media'] ?? []) as $platformId => $socialUrl) {
+                $socialMediaData[] = [
+                    'requests_id' => $requestCreated->id,
+                    'platform_id' => $platformId,
+                    'url' => $socialUrl,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
 
-        $socialMediaData = [];
-        foreach (($requestInfo['social_media'] ?? []) as $platformId => $socialUrl) {
-            $socialMediaData[] = [
-                'requests_id' => $requestCreated->id,
-                'platform_id' => $platformId,
-                'url' => $socialUrl,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-        }
+            if (! empty($socialMediaData)) {
+                RequestSocialMedia::insert($socialMediaData);
+            }
 
-        if (!empty($socialMediaData)) {
-            RequestSocialMedia::insert($socialMediaData);
-        }
-
-        return true;
-    });
+            return true;
+        });
     }
 
     public static function requestToComplete($requestId)
@@ -125,16 +120,16 @@ class Request extends Model
 
     public static function searchByName($query, $name)
     {
-        return $query->where('project_name', 'like', '%' . $name . '%');
+        return $query->where('project_name', 'like', '%'.$name.'%');
     }
 
     public static function searchBySystemTypes($query, $systemTypeId)
     {
         return $query->whereIn('id', function ($query) use ($systemTypeId) {
-        $query->select('requests_id')
-          ->from('request_types')
-          ->where('type_id', $systemTypeId);
-    });
+            $query->select('requests_id')
+                ->from('request_types')
+                ->where('type_id', $systemTypeId);
+        });
     }
 
     public static function searchByStatus($query, $statusType)
@@ -146,7 +141,4 @@ class Request extends Model
     {
         return $query->where('created_at', '>=', $startDate)->where('created_at', '<=', $endDate);
     }
-
 }
-
-

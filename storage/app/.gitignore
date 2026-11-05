@@ -1,4 +1,9 @@
 *
 !private/
 !public/
+!firebase/
 !.gitignore
+
+# Keep the Firebase credentials directory, never the service account JSON.
+firebase/*
+!firebase/.gitkeep

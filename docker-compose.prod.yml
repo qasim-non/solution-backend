@@ -22,6 +22,23 @@ services:
     networks:
       - solution_network
 
+  queue:
+    image: qasim00programmer/solution-api:2.0.0
+    container_name: solution_queue
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - APP_KEY=${APP_KEY}
+      - APP_ENV=production
+      - APP_DEBUG=false
+    command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--max-time=3600"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - solution_network
+
   frontend:
     image: qasim00programmer/solution-frontend:1.0.10
     container_name: solution_frontend

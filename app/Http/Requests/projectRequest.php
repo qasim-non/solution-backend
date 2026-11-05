@@ -4,7 +4,6 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class projectRequest extends FormRequest
 {
@@ -54,7 +53,6 @@ class projectRequest extends FormRequest
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
-
     protected function prepareForValidation()
     {
         // Extract the JSON keys into a temporary field if they exist
@@ -65,13 +63,13 @@ class projectRequest extends FormRequest
         }
     }
 
-
     public function rules(): array
     {
         return [
-            'project_name' => ['required', 'string', 'min:3','max:100',],
+            'project_name' => ['required', 'string', 'min:3', 'max:100'],
             'mobile' => ['required', 'string', 'min:10', 'max:20'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'device_id' => ['nullable', 'string', 'max:64'],
 
             'system_types' => ['required', 'array', 'min:1'],
             'system_types.*' => ['integer', 'exists:system_types,id'],
