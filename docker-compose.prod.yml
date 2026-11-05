@@ -1,3 +1,5 @@
+name: solution-prod
+
 # Production stack. Run with: docker compose --env-file .env -f docker-compose.prod.yml up -d
 services:
   app:
