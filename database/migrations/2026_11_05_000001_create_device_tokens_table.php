@@ -10,11 +10,7 @@ return new class extends Migration
     {
         Schema::create('device_tokens', function (Blueprint $table) {
             $table->id();
-
-            // Push notifications are admin-only. Deleting an admin removes the
-            // devices that were registered for them.
             $table->foreignId('admin_id')->constrained('admins')->cascadeOnDelete();
-
             $table->string('token', 512)->unique();
             $table->string('platform', 32)->default('web');
             $table->string('user_agent', 512)->nullable();

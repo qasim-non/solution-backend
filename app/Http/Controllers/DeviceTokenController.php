@@ -43,11 +43,9 @@ class DeviceTokenController extends Controller
      * Remove one of the authenticated admin's tokens when notifications are
      * disabled or the admin logs out.
      */
-    public function destroy(Request $request): JsonResponse
+    public function destroy(DeviceTokenRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'token' => ['required', 'string', 'max:512'],
-        ]);
+        $validated = $request->validated();
 
         DeviceToken::query()
             ->where('admin_id', $request->user()->id)

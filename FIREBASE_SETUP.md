@@ -144,13 +144,15 @@ docker build \
 | --- | --- | --- | --- |
 | `POST` | `/api/device-tokens` | Sanctum (admin) | Register / refresh an FCM token |
 | `DELETE` | `/api/device-tokens` | Sanctum (admin) | Remove one of the admin's tokens |
-| `GET` | `/api/notifications` | Sanctum (admin) | Paginated in-app notifications |
-| `PATCH` | `/api/notifications/{id}/read` | Sanctum (admin) | Mark one as read |
-| `PATCH` | `/api/notifications/read-all` | Sanctum (admin) | Mark all as read |
+| `GET` | `/api/notifications` | Sanctum (admin) | Paginated system-wide notifications |
+| `PATCH` | `/api/notifications/{id}/read` | Sanctum (admin) | Mark one as read for all admins |
+| `PATCH` | `/api/notifications/read-all` | Sanctum (admin) | Mark all as read for all admins |
 
 Every registered token belongs to an admin. When a customer submits a new
-request, all admins receive an in-app notification and, if they enabled the
-bell, a push notification. Customers are never notified.
+request, **one system-wide notification row** is stored in `notifications`, and
+every admin sees it. Reading it marks it read for the whole team, so the unread
+badge is shared. Push is sent to every registered admin device. Customers are
+never notified.
 
 ---
 
@@ -161,9 +163,11 @@ bell, a push notification. Customers are never notified.
 3. Log in as an admin, press the bell button in the sidebar, and allow
    notifications.
 4. Confirm a row exists in `device_tokens` with a non-null `admin_id`.
-5. Submit a customer request from the public form → admins receive an in-app row
-   in `notifications` and (once configured) a push.
-6. In the Firebase console, **Cloud Messaging** → send a test message to the
+5. Submit a customer request from the public form → a single system-wide row is
+   added to `notifications` and (once configured) a push is sent to admins.
+6. Mark the notification as read from one admin account; confirm the unread
+   count is zero for every admin.
+7. In the Firebase console, **Cloud Messaging** → send a test message to the
    token to verify delivery independently of the app.
 
 If push is skipped, check `storage/logs/laravel.log` for

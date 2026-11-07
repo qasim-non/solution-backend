@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\SendPushNotification;
 use App\Models\Admin;
 use App\Models\DeviceToken;
+use App\Models\Notification;
 use App\Models\Request as ProjectRequest;
 use App\Models\SystemType;
 use App\Services\FirebaseService;
@@ -123,7 +124,7 @@ class FirebaseNotificationTest extends TestCase
         $this->getJson('/api/notifications')->assertUnauthorized();
     }
 
-    public function test_a_customer_request_notifies_admins_without_storing_a_device_id(): void
+    public function test_a_customer_request_creates_one_system_wide_notification(): void
     {
         Queue::fake();
 
@@ -151,16 +152,136 @@ class FirebaseNotificationTest extends TestCase
         $response->assertCreated();
 
         $this->assertFalse(Schema::hasColumn('requests', 'device_id'));
+        $this->assertFalse(Schema::hasColumn('notifications', 'notifiable_id'));
 
-        $this->assertDatabaseHas('notifications', [
-            'notifiable_type' => Admin::class,
-            'notifiable_id' => $admin->id,
-        ]);
+        $notification = Notification::query()->sole();
+
+        $this->assertSame('new_request', $notification->type);
+        $this->assertSame('Test Project', $notification->data['project_name']);
+        $this->assertNull($notification->read_at);
 
         Queue::assertPushed(SendPushNotification::class, function (SendPushNotification $job): bool {
             return ($job->data['type'] ?? null) === 'new_request'
                 && $job->tokens === ['admin-token-123'];
         });
+    }
+
+    public function test_every_admin_sees_the_same_notifications(): void
+    {
+        $firstAdmin = $this->makeAdmin('admin-one');
+        $secondAdmin = $this->makeAdmin('admin-two');
+
+        Notification::create([
+            'type' => 'new_request',
+            'data' => ['type' => 'new_request', 'request_id' => 1],
+        ]);
+
+        $this->actingAs($firstAdmin, 'sanctum')
+            ->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('unread_count', 1);
+
+        $this->actingAs($secondAdmin, 'sanctum')
+            ->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('unread_count', 1);
+    }
+
+    public function test_the_unread_count_endpoint_returns_the_shared_count(): void
+    {
+        $admin = $this->makeAdmin();
+
+        Notification::create([
+            'type' => 'new_request',
+            'data' => ['type' => 'new_request', 'request_id' => 1],
+        ]);
+
+        Notification::create([
+            'type' => 'new_request',
+            'data' => ['type' => 'new_request', 'request_id' => 2],
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/notifications/unread-count')
+            ->assertOk()
+            ->assertJsonPath('data.unread_count', 2);
+    }
+
+    public function test_marking_a_missing_notification_returns_not_found(): void
+    {
+        $admin = $this->makeAdmin();
+
+        $this->actingAs($admin, 'sanctum')
+            ->patchJson('/api/notifications/00000000-0000-0000-0000-000000000000/read')
+            ->assertNotFound();
+    }
+
+    public function test_reading_a_notification_marks_it_read_for_every_admin(): void
+    {
+        $firstAdmin = $this->makeAdmin('admin-one');
+        $secondAdmin = $this->makeAdmin('admin-two');
+
+        $notification = Notification::create([
+            'type' => 'new_request',
+            'data' => ['type' => 'new_request', 'request_id' => 1],
+        ]);
+
+        $this->actingAs($firstAdmin, 'sanctum')
+            ->patchJson("/api/notifications/{$notification->id}/read")
+            ->assertOk();
+
+        $notification->refresh();
+
+        $this->assertNotNull($notification->read_at);
+        $this->assertSame($firstAdmin->id, $notification->read_by);
+
+        $this->actingAs($secondAdmin, 'sanctum')
+            ->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $notification->id)
+            ->assertJsonPath('data.0.read_at', fn ($value): bool => $value !== null)
+            ->assertJsonPath('unread_count', 0);
+
+        $this->actingAs($secondAdmin, 'sanctum')
+            ->getJson('/api/notifications/unread-count')
+            ->assertOk()
+            ->assertJsonPath('data.unread_count', 0);
+    }
+
+    public function test_mark_all_as_read_marks_every_notification_read(): void
+    {
+        $firstAdmin = $this->makeAdmin('admin-one');
+        $secondAdmin = $this->makeAdmin('admin-two');
+
+        Notification::create([
+            'type' => 'new_request',
+            'data' => ['type' => 'new_request', 'request_id' => 1],
+        ]);
+
+        Notification::create([
+            'type' => 'new_request',
+            'data' => ['type' => 'new_request', 'request_id' => 2],
+        ]);
+
+        $this->actingAs($firstAdmin, 'sanctum')
+            ->patchJson('/api/notifications/read-all')
+            ->assertOk();
+
+        $this->assertSame(0, Notification::query()->whereNull('read_at')->count());
+        $this->assertSame(2, Notification::query()->where('read_by', $firstAdmin->id)->count());
+
+        $this->actingAs($secondAdmin, 'sanctum')
+            ->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('unread_count', 0);
+
+        $this->actingAs($secondAdmin, 'sanctum')
+            ->getJson('/api/notifications/unread-count')
+            ->assertOk()
+            ->assertJsonPath('data.unread_count', 0);
     }
 
     public function test_completing_a_request_does_not_dispatch_a_customer_push(): void

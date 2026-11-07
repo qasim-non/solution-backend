@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Traits\ApiResponse;
+use App\Models\Notification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -11,51 +12,75 @@ class NotificationController extends Controller
     use ApiResponse;
 
     /**
-     * Paginated in-app notifications for the authenticated admin.
+     * Paginated in-app notifications.
+     *
+     * Notifications are system-wide, so every authenticated admin receives the
+     * same list. `unread_count` is included so the notification page does not
+     * need a second request to render the badge.
      */
-    public function index(Request $request): JsonResponse
+    public function index(): JsonResponse
     {
-        $notifications = $request->user()
-            ->notifications()
+        $notifications = Notification::query()
             ->latest()
             ->paginate(20);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Notifications retrieved successfully.',
-            'data' => $notifications->items(),
-            'meta' => [
-                'current_page' => $notifications->currentPage(),
-                'last_page' => $notifications->lastPage(),
-                'per_page' => $notifications->perPage(),
-                'total' => $notifications->total(),
-            ],
-            'unread_count' => $request->user()->unreadNotifications()->count(),
+        return $this->paginated($notifications, 'Notifications retrieved successfully.', [
+            'unread_count' => $this->unreadNotificationsCount(),
         ]);
     }
 
-    public function markAsRead(Request $request, string $notification): JsonResponse
+    /**
+     * Lightweight endpoint for the sidebar badge.
+     *
+     * The admin layout calls this once on load and refreshes it after a push or
+     * after marking notifications as read. It avoids loading the full list just
+     * to display a number.
+     */
+    public function unreadCount(): JsonResponse
     {
-        $item = $request->user()
-            ->notifications()
-            ->whereKey($notification)
-            ->first();
+        return $this->success(
+            ['unread_count' => $this->unreadNotificationsCount()],
+            'Unread notification count retrieved successfully.',
+        );
+    }
 
-        if (! $item) {
-            return $this->notFound('Notification not found.');
+    /**
+     * Mark one notification as read for every admin.
+     *
+     * The first admin wins; later requests keep the original `read_by`.
+     */
+    public function markAsRead(Request $request, Notification $notification): JsonResponse
+    {
+        if ($notification->read_at === null) {
+            $notification->forceFill([
+                'read_at' => now(),
+                'read_by' => $request->user()?->id,
+            ])->save();
         }
-
-        $item->markAsRead();
 
         return $this->success(null, 'Notification marked as read.');
     }
 
+    /**
+     * Mark every unread notification as read for all admins.
+     */
     public function markAllAsRead(Request $request): JsonResponse
     {
-        $request->user()
-            ->unreadNotifications()
-            ->update(['read_at' => now()]);
+        Notification::query()
+            ->whereNull('read_at')
+            ->update([
+                'read_at' => now(),
+                'read_by' => $request->user()?->id,
+            ]);
 
         return $this->success(null, 'All notifications marked as read.');
+    }
+
+    /**
+     * Shared unread count for every admin.
+     */
+    private function unreadNotificationsCount(): int
+    {
+        return Notification::query()->whereNull('read_at')->count();
     }
 }

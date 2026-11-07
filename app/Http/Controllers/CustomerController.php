@@ -9,6 +9,7 @@ use App\Models\ContactInfo;
 use App\Models\Message;
 use App\Models\Request;
 use App\Services\CustomerRequestService;
+use App\Services\MessageService;
 use Exception;
 use Illuminate\Support\Facades\Log;
 
@@ -25,11 +26,11 @@ class CustomerController extends Controller
     }
 
 
-    public function message(messageRequest $message)
+    public function message(messageRequest $message, MessageService $messageService)
     {
         $validateMessage = $message->validated();
 
-        Message::create($validateMessage);
+        $messageService->createMessage($validateMessage);
 
         return $this->success(null, 'The message was created successfully.', 201);
     }

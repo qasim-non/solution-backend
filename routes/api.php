@@ -1,9 +1,14 @@
 <?php
 
-use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeviceTokenController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\RequestController;
+use App\Http\Controllers\RequestSocialMediaController;
+use App\Http\Controllers\SystemTypeController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('throttle:api')->group(function () {
@@ -14,7 +19,7 @@ Route::middleware('throttle:api')->group(function () {
     Route::get('/contact', [CustomerController::class, 'contact']);
 
     // Public: the customer request form needs the list of system types.
-    Route::get('/system-types', [AdminController::class, 'systemTypes']);
+    Route::get('/system-types', [SystemTypeController::class, 'systemTypes']);
 
     // GET (Details) -> show the number of projects and devs in the team.
 
@@ -22,18 +27,18 @@ Route::middleware('throttle:api')->group(function () {
 
     // GET (cities) -> return all cities in the system.
 
-    Route::post('/login', [AdminController::class, 'login'])->middleware('throttle:login');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 });
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
-    Route::get('/dashboard', [AdminController::class, 'dashboardInfo']);
+    Route::get('/dashboard', [DashboardController::class, 'dashboardInfo']);
 
-    Route::get('/requests', [AdminController::class, 'returnAllRequests']);
+    Route::get('/requests', [RequestController::class, 'returnAllRequests']);
 
-    Route::get('/request/social-media-account/{request}', [AdminController::class, 'returnSocialMediaAccount']);
+    Route::get('/request/social-media-account/{request}', [RequestSocialMediaController::class, 'returnSocialMediaAccount']);
 
-    Route::get('/messages', [AdminController::class, 'returnAllMessages']);
+    Route::get('/messages', [MessageController::class, 'returnAllMessages']);
 
     // Admin-only: only authenticated admins may register a push device.
     Route::post('/device-tokens', [DeviceTokenController::class, 'store'])
@@ -44,13 +49,15 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
     Route::get('/notifications', [NotificationController::class, 'index']);
 
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
 
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
 
-    Route::patch('/request/{request}/complete', [AdminController::class, 'requestComplete']);
+    Route::patch('/request/{request}/complete', [RequestController::class, 'requestComplete']);
 
-    Route::patch('/request/{request}/revert', [AdminController::class, 'requestRevert']);
+    Route::patch('/request/{request}/revert', [RequestController::class, 'requestRevert']);
 
     // GET (develpoers) -> get all devs with pagination , filters and search by name only (also this should return the dashboard data) use some other web to store files
 
@@ -64,4 +71,5 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
     // PATCH (notifcatoin/read)
 
+    // (logout)
 });
