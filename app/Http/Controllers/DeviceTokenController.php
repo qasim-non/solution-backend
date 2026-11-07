@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\DeviceTokenRequest;
 use App\Http\Traits\ApiResponse;
 use App\Models\DeviceToken;
+use App\Models\PersonalAccessToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,18 +15,19 @@ class DeviceTokenController extends Controller
 
     /**
      * Register (or refresh) the authenticated admin's FCM token.
-     *
-     * Only admins can receive push notifications, so the route is protected by
-     * `auth:sanctum` and every token is linked to the admin that registered it.
      */
     public function store(DeviceTokenRequest $request): JsonResponse
     {
         $validated = $request->validated();
+        $currentToken = $request->user()->currentAccessToken();
 
         $deviceToken = DeviceToken::updateOrCreate(
             ['token' => $validated['token']],
             [
                 'admin_id' => $request->user()->id,
+                'session_id' => $currentToken instanceof PersonalAccessToken
+                    ? $currentToken->session_id
+                    : null,
                 'platform' => $validated['platform'] ?? 'web',
                 'user_agent' => $request->userAgent(),
                 'last_used_at' => now(),
@@ -40,8 +42,7 @@ class DeviceTokenController extends Controller
     }
 
     /**
-     * Remove one of the authenticated admin's tokens when notifications are
-     * disabled or the admin logs out.
+     * Remove one of the authenticated admin's own device tokens.
      */
     public function destroy(DeviceTokenRequest $request): JsonResponse
     {
