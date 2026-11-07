@@ -31,11 +31,11 @@ Route::middleware('throttle:api')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 });
 
-Route::middleware(['auth:sanctum', CheckAbilities::class.':refresh', 'throttle:refresh'])->group(function () {
+Route::middleware(['auth:sanctum', EnsureTokenIsActive::class, CheckAbilities::class.':refresh', 'throttle:refresh'])->group(function () {
     Route::post('/auth/refresh', [AuthController::class, 'refresh']);
 });
 
-Route::middleware(['auth:sanctum', CheckAbilities::class.':access', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', EnsureTokenIsActive::class, CheckAbilities::class.':access', 'throttle:api'])->group(function () {
 
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
