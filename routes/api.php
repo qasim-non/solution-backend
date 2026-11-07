@@ -10,6 +10,7 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\RequestSocialMediaController;
 use App\Http\Controllers\SystemTypeController;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 
 Route::middleware('throttle:api')->group(function () {
     Route::post('/request', [CustomerController::class, 'request']);
@@ -30,7 +31,13 @@ Route::middleware('throttle:api')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 });
 
-Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', CheckAbilities::class.':refresh', 'throttle:refresh'])->group(function () {
+    Route::post('/auth/refresh', [AuthController::class, 'refresh']);
+});
+
+Route::middleware(['auth:sanctum', CheckAbilities::class.':access', 'throttle:api'])->group(function () {
+
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
 
     Route::get('/dashboard', [DashboardController::class, 'dashboardInfo']);
 
@@ -70,6 +77,4 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     // GET (notifcatoin)
 
     // PATCH (notifcatoin/read)
-
-    // (logout)
 });

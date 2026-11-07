@@ -12,6 +12,7 @@ use App\Services\FirebaseService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class FirebaseNotificationTest extends TestCase
@@ -25,6 +26,16 @@ class FirebaseNotificationTest extends TestCase
             'password' => bcrypt('secret'),
             'role' => 'dev',
         ]);
+    }
+
+    /**
+     * Authenticate with an access-ability token, matching production tokens.
+     */
+    private function authenticate(Admin $admin): self
+    {
+        Sanctum::actingAs($admin, ['access']);
+
+        return $this;
     }
 
     public function test_device_token_registration_requires_authentication(): void
@@ -45,7 +56,7 @@ class FirebaseNotificationTest extends TestCase
     {
         $admin = $this->makeAdmin();
 
-        $this->actingAs($admin, 'sanctum')
+        $this->authenticate($admin)
             ->postJson('/api/device-tokens', [
                 'token' => 'fcm-token-123',
                 'platform' => 'web',
@@ -68,8 +79,8 @@ class FirebaseNotificationTest extends TestCase
             'platform' => 'web',
         ];
 
-        $this->actingAs($admin, 'sanctum')->postJson('/api/device-tokens', $payload)->assertCreated();
-        $this->actingAs($admin, 'sanctum')->postJson('/api/device-tokens', $payload)->assertCreated();
+        $this->authenticate($admin)->postJson('/api/device-tokens', $payload)->assertCreated();
+        $this->authenticate($admin)->postJson('/api/device-tokens', $payload)->assertCreated();
 
         $this->assertDatabaseCount('device_tokens', 1);
     }
@@ -78,7 +89,7 @@ class FirebaseNotificationTest extends TestCase
     {
         $admin = $this->makeAdmin();
 
-        $this->actingAs($admin, 'sanctum')
+        $this->authenticate($admin)
             ->postJson('/api/device-tokens', [])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['token']);
@@ -94,7 +105,7 @@ class FirebaseNotificationTest extends TestCase
             'platform' => 'web',
         ]);
 
-        $this->actingAs($admin, 'sanctum')
+        $this->authenticate($admin)
             ->deleteJson('/api/device-tokens', ['token' => 'fcm-token-123'])
             ->assertOk();
 
@@ -112,7 +123,7 @@ class FirebaseNotificationTest extends TestCase
             'platform' => 'web',
         ]);
 
-        $this->actingAs($admin, 'sanctum')
+        $this->authenticate($admin)
             ->deleteJson('/api/device-tokens', ['token' => 'other-admin-token'])
             ->assertOk();
 
@@ -176,13 +187,13 @@ class FirebaseNotificationTest extends TestCase
             'data' => ['type' => 'new_request', 'request_id' => 1],
         ]);
 
-        $this->actingAs($firstAdmin, 'sanctum')
+        $this->authenticate($firstAdmin)
             ->getJson('/api/notifications')
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('unread_count', 1);
 
-        $this->actingAs($secondAdmin, 'sanctum')
+        $this->authenticate($secondAdmin)
             ->getJson('/api/notifications')
             ->assertOk()
             ->assertJsonCount(1, 'data')
@@ -203,7 +214,7 @@ class FirebaseNotificationTest extends TestCase
             'data' => ['type' => 'new_request', 'request_id' => 2],
         ]);
 
-        $this->actingAs($admin, 'sanctum')
+        $this->authenticate($admin)
             ->getJson('/api/notifications/unread-count')
             ->assertOk()
             ->assertJsonPath('data.unread_count', 2);
@@ -213,7 +224,7 @@ class FirebaseNotificationTest extends TestCase
     {
         $admin = $this->makeAdmin();
 
-        $this->actingAs($admin, 'sanctum')
+        $this->authenticate($admin)
             ->patchJson('/api/notifications/00000000-0000-0000-0000-000000000000/read')
             ->assertNotFound();
     }
@@ -228,7 +239,7 @@ class FirebaseNotificationTest extends TestCase
             'data' => ['type' => 'new_request', 'request_id' => 1],
         ]);
 
-        $this->actingAs($firstAdmin, 'sanctum')
+        $this->authenticate($firstAdmin)
             ->patchJson("/api/notifications/{$notification->id}/read")
             ->assertOk();
 
@@ -237,14 +248,14 @@ class FirebaseNotificationTest extends TestCase
         $this->assertNotNull($notification->read_at);
         $this->assertSame($firstAdmin->id, $notification->read_by);
 
-        $this->actingAs($secondAdmin, 'sanctum')
+        $this->authenticate($secondAdmin)
             ->getJson('/api/notifications')
             ->assertOk()
             ->assertJsonPath('data.0.id', $notification->id)
             ->assertJsonPath('data.0.read_at', fn ($value): bool => $value !== null)
             ->assertJsonPath('unread_count', 0);
 
-        $this->actingAs($secondAdmin, 'sanctum')
+        $this->authenticate($secondAdmin)
             ->getJson('/api/notifications/unread-count')
             ->assertOk()
             ->assertJsonPath('data.unread_count', 0);
@@ -265,20 +276,20 @@ class FirebaseNotificationTest extends TestCase
             'data' => ['type' => 'new_request', 'request_id' => 2],
         ]);
 
-        $this->actingAs($firstAdmin, 'sanctum')
+        $this->authenticate($firstAdmin)
             ->patchJson('/api/notifications/read-all')
             ->assertOk();
 
         $this->assertSame(0, Notification::query()->whereNull('read_at')->count());
         $this->assertSame(2, Notification::query()->where('read_by', $firstAdmin->id)->count());
 
-        $this->actingAs($secondAdmin, 'sanctum')
+        $this->authenticate($secondAdmin)
             ->getJson('/api/notifications')
             ->assertOk()
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('unread_count', 0);
 
-        $this->actingAs($secondAdmin, 'sanctum')
+        $this->authenticate($secondAdmin)
             ->getJson('/api/notifications/unread-count')
             ->assertOk()
             ->assertJsonPath('data.unread_count', 0);
@@ -296,7 +307,7 @@ class FirebaseNotificationTest extends TestCase
             'status' => 'pending',
         ]);
 
-        $this->actingAs($admin, 'sanctum')
+        $this->authenticate($admin)
             ->patchJson("/api/request/{$projectRequest->id}/complete")
             ->assertOk();
 

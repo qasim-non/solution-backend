@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\PersonalAccessToken;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,6 +24,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+
         RateLimiter::for('api', function (Request $request) {
             return $request->user()
                 ? Limit::perMinute(120)->by($request->user()->id)
@@ -41,6 +45,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('login', function (Request $request) {
             // Limit by IP address to block brute-force attacks
             return Limit::perMinute(5)->by($request->ip());
+        });
+
+        // Refresh tokens are long-lived, so cap how often they can be exchanged.
+        RateLimiter::for('refresh', function (Request $request) {
+            return Limit::perMinute(10)->by($request->user()?->id ?: $request->ip());
         });
 
         // Admin-only device registration is cheap but must not be abused to
