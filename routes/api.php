@@ -9,6 +9,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\RequestSocialMediaController;
 use App\Http\Controllers\SystemTypeController;
+use App\Http\Middleware\EnsureTokenIsActive;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 
