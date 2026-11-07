@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Admin;
-use App\Models\DeviceToken;
 use App\Models\PersonalAccessToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -200,7 +199,7 @@ class AuthTokenTest extends TestCase
 
     public function test_logout_revokes_the_session_and_deletes_its_device_token(): void
     {
-        $admin = $this->makeAdmin();
+        $this->makeAdmin();
         $pair = $this->login();
 
         $this->asToken($pair['token'])
