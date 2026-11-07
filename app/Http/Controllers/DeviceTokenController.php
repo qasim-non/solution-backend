@@ -7,7 +7,6 @@ use App\Http\Traits\ApiResponse;
 use App\Models\DeviceToken;
 use App\Models\PersonalAccessToken;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class DeviceTokenController extends Controller
 {
