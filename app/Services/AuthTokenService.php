@@ -78,6 +78,28 @@ class AuthTokenService
     }
 
     /**
+     * Revoke legacy tokens that predate session tracking.
+     *
+     * Because those tokens cannot be attributed to one device, all legacy
+     * sessions for this admin must be invalidated together.
+     */
+    public function revokeLegacySessions(PersonalAccessToken $currentToken): void
+    {
+        DB::transaction(function () use ($currentToken): void {
+            PersonalAccessToken::query()
+                ->where('tokenable_type', $currentToken->tokenable_type)
+                ->where('tokenable_id', $currentToken->tokenable_id)
+                ->whereNull('session_id')
+                ->update(['is_revoked' => true]);
+
+            DeviceToken::query()
+                ->where('admin_id', $currentToken->tokenable_id)
+                ->whereNull('session_id')
+                ->delete();
+        });
+    }
+
+    /**
      * Revoke a complete login session and its registered push device.
      */
     public function revokeSession(?string $sessionId): void
