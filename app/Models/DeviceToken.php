@@ -15,6 +15,7 @@ class DeviceToken extends Model
         'platform',
         'user_agent',
         'last_used_at',
+        'session_id',
     ];
 
     protected function casts(): array
