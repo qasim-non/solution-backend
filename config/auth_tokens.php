@@ -8,7 +8,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Access tokens are short-lived and sent on every API request. Refresh
-    | tokens are long-lived, single-use, and only accepted by /auth/refresh.
+    | tokens are single-use and only accepted by /auth/refresh. Their expiry
+    | is an absolute session deadline measured from the original login; token
+    | rotation must preserve that deadline rather than extending it.
     |
     | These lifetimes are applied per token through Sanctum's `expires_at`
     | column, so keep `sanctum.expiration` empty: that setting is a global cap
