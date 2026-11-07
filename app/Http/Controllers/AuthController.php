@@ -5,71 +5,58 @@ namespace App\Http\Controllers;
 use App\Http\Requests\loginRequest;
 use App\Models\Admin;
 use App\Models\PersonalAccessToken;
-use App\Services\AuthTokenService;
+use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    public function login(loginRequest $login, AuthTokenService $tokens)
+    /**
+     * Authenticate an admin and issue a new access/refresh token pair.
+     */
+    public function login(loginRequest $request, AuthService $auth): JsonResponse
     {
-        $loginInfoValidated = $login->validated();
+        $tokens = $auth->login($request->validated());
 
-        $admin = Admin::getAdmin($loginInfoValidated);
-
-        if (! $admin || ! Hash::check($loginInfoValidated['password'], $admin['password'])) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid username or password.',
-            ], 401);
+        if ($tokens === null) {
+            return $this->unauthorized('Invalid username or password.');
         }
 
-        // Keep existing sessions valid so logging in on one device/browser
-        // does not silently log out the others.
-        $pair = $tokens->issue($admin);
-
-        return response()->json([
-            'message' => 'Admin login successful.',
-            ...$pair,
-        ], 200);
+        return $this->success($tokens, 'Admin login successful.');
     }
 
     /**
      * Exchange a valid refresh token for a new access/refresh pair.
-     *
-     * Refresh tokens are single-use: the used pair is revoked before the new
-     * one is returned.
      */
-    public function refresh(Request $request, AuthTokenService $tokens): JsonResponse
+    public function refresh(Request $request, AuthService $auth): JsonResponse
     {
-        $current = $request->user()->currentAccessToken();
+        $admin = $request->user();
+        $currentToken = $admin?->currentAccessToken();
 
-        if (! $current instanceof PersonalAccessToken) {
-            return response()->json(['message' => 'Invalid refresh token.'], 401);
+        if (! $admin instanceof Admin || ! $currentToken instanceof PersonalAccessToken) {
+            return $this->unauthorized('Invalid refresh token.');
         }
 
-        return response()->json([
-            'message' => 'Token refreshed successfully.',
-            ...$tokens->rotate($request->user(), $current),
-        ], 200);
+        $tokens = $auth->refresh($admin, $currentToken);
+
+        if ($tokens === null) {
+            return $this->unauthorized('Invalid refresh token.');
+        }
+
+        return $this->success($tokens, 'Token refreshed successfully.');
     }
 
     /**
      * Revoke the current login session (access and refresh token).
      */
-    public function logout(Request $request, AuthTokenService $tokens): JsonResponse
+    public function logout(Request $request, AuthService $auth): JsonResponse
     {
-        $current = $request->user()->currentAccessToken();
+        $currentToken = $request->user()?->currentAccessToken();
 
-        if ($current instanceof PersonalAccessToken) {
-            if ($current->session_id !== null) {
-                $tokens->revokeSession($current->session_id);
-            } else {
-                $current->delete();
-            }
+        if ($currentToken instanceof PersonalAccessToken) {
+            $auth->logout($currentToken);
         }
 
-        return response()->json(['message' => 'Admin logged out successfully.'], 200);
+        return $this->success(null, 'Admin logged out successfully.');
     }
 }
