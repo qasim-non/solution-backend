@@ -3,19 +3,13 @@
 namespace App\Services;
 
 use App\Models\Admin;
+use App\Models\DeviceToken;
 use App\Models\PersonalAccessToken;
 use DateTimeInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\NewAccessToken;
 
-/**
- * Issues and revokes the access/refresh token pair used by the admin API.
- *
- * Each login creates two Sanctum tokens that share a session_id:
- * - access: short-lived and accepted by protected API routes
- * - refresh: long-lived and accepted only by the refresh endpoint
- */
 class AuthTokenService
 {
     /**
@@ -26,38 +20,16 @@ class AuthTokenService
     public function issue(Admin $admin): array
     {
         return DB::transaction(function () use ($admin): array {
-            $sessionId = (string) Str::uuid();
-
-            $access = $this->createToken(
-                admin: $admin,
-                name: 'access',
-                abilities: ['access'],
-                expiresAt: now()->addMinutes($this->accessTtlMinutes()),
-                sessionId: $sessionId,
+            return $this->issueForSession(
+                $admin,
+                (string) Str::uuid(),
+                now()->addDays($this->refreshTtlDays()),
             );
-
-            $refresh = $this->createToken(
-                admin: $admin,
-                name: 'refresh',
-                abilities: ['refresh'],
-                expiresAt: now()->addDays($this->refreshTtlDays()),
-                sessionId: $sessionId,
-            );
-
-            return [
-                'token' => $access->plainTextToken,
-                'refresh_token' => $refresh->plainTextToken,
-                'token_type' => 'Bearer',
-                'expires_in' => $this->accessTtlMinutes() * 60,
-            ];
         });
     }
 
     /**
-     * Atomically consume a refresh token and issue a replacement pair.
-     *
-     * The row lock prevents two concurrent requests from successfully rotating
-     * the same refresh token on database engines that support FOR UPDATE.
+     * Atomically rotate a refresh token without extending the session deadline.
      *
      * @return array{token: string, refresh_token: string, token_type: string, expires_in: int}|null
      */
@@ -69,28 +41,38 @@ class AuthTokenService
                 ->lockForUpdate()
                 ->first();
 
-            if (
-                ! $lockedToken
+            if (! $lockedToken
                 || $lockedToken->tokenable_id !== $admin->getKey()
                 || $lockedToken->tokenable_type !== $admin->getMorphClass()
-                || ! $lockedToken->can('refresh')
-                || ($lockedToken->expires_at !== null && $lockedToken->expires_at->isPast())
-            ) {
+                || ! $lockedToken->can('refresh')) {
                 return null;
             }
 
-            if ($lockedToken->session_id !== null) {
+            // A second/concurrent use of a consumed refresh token is a reuse
+            // attempt. Revoke the whole session, including any replacement pair.
+            if ($lockedToken->is_revoked) {
                 $this->revokeSession($lockedToken->session_id);
-            } else {
-                $lockedToken->delete();
+
+                return null;
             }
 
-            return $this->issue($admin);
+            if ($lockedToken->expires_at !== null && $lockedToken->expires_at->isPast()) {
+                return null;
+            }
+
+            $sessionId = $lockedToken->session_id ?? (string) Str::uuid();
+            $sessionExpiresAt = $lockedToken->expires_at
+                ?? now()->addDays($this->refreshTtlDays());
+
+            // Keep consumed token rows so a later replay can be detected.
+            $this->revokeTokenPair($sessionId);
+
+            return $this->issueForSession($admin, $sessionId, $sessionExpiresAt);
         });
     }
 
     /**
-     * Revoke every token issued by one login session.
+     * Revoke a complete login session and its registered push device.
      */
     public function revokeSession(?string $sessionId): void
     {
@@ -98,9 +80,64 @@ class AuthTokenService
             return;
         }
 
+        DB::transaction(function () use ($sessionId): void {
+            $this->revokeTokenPair($sessionId);
+
+            DeviceToken::query()
+                ->where('session_id', $sessionId)
+                ->delete();
+        });
+    }
+
+    /**
+     * Mark the consumed pair as revoked while retaining it for reuse detection.
+     */
+    private function revokeTokenPair(string $sessionId): void
+    {
         PersonalAccessToken::query()
             ->where('session_id', $sessionId)
-            ->delete();
+            ->update(['is_revoked' => true]);
+    }
+
+    /**
+     * Issue a replacement pair inside an existing session's absolute lifetime.
+     *
+     * @return array{token: string, refresh_token: string, token_type: string, expires_in: int}
+     */
+    private function issueForSession(
+        Admin $admin,
+        string $sessionId,
+        DateTimeInterface $sessionExpiresAt,
+    ): array {
+        $accessExpiresAt = now()->addMinutes($this->accessTtlMinutes());
+
+        if ($sessionExpiresAt instanceof \Illuminate\Support\Carbon
+            && $sessionExpiresAt->lt($accessExpiresAt)) {
+            $accessExpiresAt = $sessionExpiresAt;
+        }
+
+        $access = $this->createToken(
+            admin: $admin,
+            name: 'access',
+            abilities: ['access'],
+            expiresAt: $accessExpiresAt,
+            sessionId: $sessionId,
+        );
+
+        $refresh = $this->createToken(
+            admin: $admin,
+            name: 'refresh',
+            abilities: ['refresh'],
+            expiresAt: $sessionExpiresAt,
+            sessionId: $sessionId,
+        );
+
+        return [
+            'token' => $access->plainTextToken,
+            'refresh_token' => $refresh->plainTextToken,
+            'token_type' => 'Bearer',
+            'expires_in' => max(0, now()->diffInSeconds($accessExpiresAt, false)),
+        ];
     }
 
     /**
@@ -115,7 +152,10 @@ class AuthTokenService
     ): NewAccessToken {
         $token = $admin->createToken($name, $abilities, $expiresAt);
 
-        $token->accessToken->forceFill(['session_id' => $sessionId])->save();
+        $token->accessToken->forceFill([
+            'session_id' => $sessionId,
+            'is_revoked' => false,
+        ])->save();
 
         return $token;
     }
