@@ -64,6 +64,12 @@ class AuthTokenService
             $sessionExpiresAt = $lockedToken->expires_at
                 ?? now()->addDays($this->refreshTtlDays());
 
+            // Legacy tokens may not have a session id. Attach one before
+            // revocation so a replay can still invalidate the replacement pair.
+            if ($lockedToken->session_id === null) {
+                $lockedToken->forceFill(['session_id' => $sessionId])->save();
+            }
+
             // Keep consumed token rows so a later replay can be detected.
             $this->revokeTokenPair($sessionId);
 
