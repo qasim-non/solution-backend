@@ -27,7 +27,7 @@ class AuthTokenTest extends TestCase
     {
         return $this->postJson('/api/login', compact('username', 'password'))
             ->assertOk()
-            ->json();
+            ->json('data');
     }
 
     /**
@@ -54,9 +54,9 @@ class AuthTokenTest extends TestCase
 
         $response
             ->assertJsonPath('message', 'Admin login successful.')
-            ->assertJsonPath('token_type', 'Bearer')
-            ->assertJsonPath('expires_in', 1800)
-            ->assertJsonStructure(['token', 'refresh_token']);
+            ->assertJsonPath('data.token_type', 'Bearer')
+            ->assertJsonPath('data.expires_in', 1800)
+            ->assertJsonStructure(['data' => ['token', 'refresh_token']]);
 
         $access = PersonalAccessToken::query()->where('name', 'access')->firstOrFail();
         $refresh = PersonalAccessToken::query()->where('name', 'refresh')->firstOrFail();
@@ -117,9 +117,9 @@ class AuthTokenTest extends TestCase
             ->postJson('/api/auth/refresh')
             ->assertOk()
             ->assertJsonPath('message', 'Token refreshed successfully.')
-            ->assertJsonPath('token_type', 'Bearer')
-            ->assertJsonPath('expires_in', 1800)
-            ->json();
+            ->assertJsonPath('data.token_type', 'Bearer')
+            ->assertJsonPath('data.expires_in', 1800)
+            ->json('data');
 
         // The old pair is revoked.
         $this->asToken($pair['refresh_token'])
