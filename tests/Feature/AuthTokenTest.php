@@ -261,6 +261,32 @@ class AuthTokenTest extends TestCase
             ->assertOk();
     }
 
+
+    public function test_logout_revokes_legacy_tokens_and_unscoped_device_tokens(): void
+    {
+        $admin = $this->makeAdmin();
+        $access = $admin->createToken('access', ['access']);
+        $refresh = $admin->createToken('refresh', ['refresh']);
+
+        \App\Models\DeviceToken::create([
+            'admin_id' => $admin->id,
+            'token' => 'legacy-fcm-token',
+            'platform' => 'web',
+        ]);
+
+        $this->asToken($access->plainTextToken)
+            ->postJson('/api/auth/logout')
+            ->assertOk();
+
+        $this->assertTrue($access->accessToken->fresh()->is_revoked);
+        $this->assertTrue($refresh->accessToken->fresh()->is_revoked);
+        $this->assertDatabaseMissing('device_tokens', ['token' => 'legacy-fcm-token']);
+
+        $this->asToken($refresh->plainTextToken)
+            ->postJson('/api/auth/refresh')
+            ->assertUnauthorized();
+    }
+
     public function test_refreshing_requires_a_token(): void
     {
         $this->postJson('/api/auth/refresh')->assertUnauthorized();
