@@ -111,8 +111,7 @@ class AuthTokenService
     ): array {
         $accessExpiresAt = now()->addMinutes($this->accessTtlMinutes());
 
-        if ($sessionExpiresAt instanceof \Illuminate\Support\Carbon
-            && $sessionExpiresAt->lt($accessExpiresAt)) {
+        if ($sessionExpiresAt->getTimestamp() < $accessExpiresAt->getTimestamp()) {
             $accessExpiresAt = $sessionExpiresAt;
         }
 
@@ -136,7 +135,7 @@ class AuthTokenService
             'token' => $access->plainTextToken,
             'refresh_token' => $refresh->plainTextToken,
             'token_type' => 'Bearer',
-            'expires_in' => max(0, now()->diffInSeconds($accessExpiresAt, false)),
+            'expires_in' => max(0, $accessExpiresAt->getTimestamp() - now()->getTimestamp()),
         ];
     }
 
