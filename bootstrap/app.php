@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\LogRequests;
+use App\Http\Middleware\LogThrottledRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(LogRequests::class);
+
+        // Runs outside the route-level throttle middleware so it can record
+        // 429 rejections; it re-throws, so the response is unchanged.
+        $middleware->append(LogThrottledRequests::class);
 
         // Laravel's default guest redirect calls route('login'), which this
         // API-only backend does not define. API clients must receive a 401

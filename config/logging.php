@@ -73,6 +73,16 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Rate-limit hits and other security-relevant events. Kept separate so
+        // brute-force attempts are easy to find without noise from app logs.
+        'security' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/security.log'),
+            'level' => 'info',
+            'days' => env('LOG_SECURITY_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
