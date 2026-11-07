@@ -56,6 +56,9 @@ class AuthService
             return;
         }
 
-        $currentToken->forceFill(['is_revoked' => true])->save();
+        // Before session IDs existed, tokens could not be separated by device.
+        // Revoke all remaining legacy tokens for this admin rather than leave
+        // the paired refresh token usable after logout.
+        $this->tokens->revokeLegacySessions($currentToken);
     }
 }
